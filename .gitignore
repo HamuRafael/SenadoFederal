@@ -1,0 +1,17 @@
+# Ignorar ambiente virtual (muito pesado)
+venv/
+.env
+
+# Ignorar arquivos compilados do Python
+__pycache__/
+*.pyc
+
+# Ignorar arquivos gerados pelo robô (para não vazar dados reais)
+Documentos_Gerados/
+*.docx
+*.pdf
+
+# Ignorar arquivos de build do PyInstaller (se você criar o .exe)
+build/
+dist/
+*.spec

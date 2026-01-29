@@ -8,11 +8,9 @@ driver = None
 
 def iniciar_driver_debug():
     global driver
-    print("--- Inicializando driver em modo HEADLESS (Invisível) ---")
+    print("--- Inicializando driver VISÍVEL ---")
     
     options = webdriver.ChromeOptions()
-
-    options.add_argument('--headless') 
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--ignore-certificate-errors')
@@ -22,34 +20,25 @@ def iniciar_driver_debug():
 
 def realizar_login_automatico(usuario, senha):
     global driver
-    
     try:
         if driver is None:
             iniciar_driver_debug()
             
         url_alvo = "https://www26.senado.leg.br/senado/Ergon/Administracao/ERGadm00104.tp"
         driver.get(url_alvo)
-        
-        print("Aguardando página de login...")
         time.sleep(3) 
         
-        # --- LOGIN ---
-        try:
-            driver.find_element(By.ID, "username").clear()
+        try: driver.find_element(By.ID, "username").clear()
         except: pass
         driver.find_element(By.ID, "username").send_keys(usuario)
         
-        try:
-            driver.find_element(By.ID, "password").clear()
+        try: driver.find_element(By.ID, "password").clear()
         except: pass
         driver.find_element(By.ID, "password").send_keys(senha)
         driver.find_element(By.ID, "password").send_keys(Keys.RETURN)
         
-        print("Login enviado. Esperando 5s para carregar sistema...")
         time.sleep(5)
-        
         return True
-
     except Exception as e:
         print(f"Erro no login: {e}")
         return False
@@ -58,83 +47,144 @@ def buscar_dados_servidor(CPF_ALVO):
     global driver
     
     if driver is None:
-        print("ERRO CRÍTICO: O navegador não foi detectado. Faça o login novamente.")
+        print("ERRO CRÍTICO: Navegador fechado.")
         return None
 
     try:
-        print(f"--- Iniciando busca por: {CPF_ALVO} ---")
+        dados_base = {} 
+        lista_final_dados = [] 
+
+        # =================================================================
+        # ETAPA 1: DADOS PESSOAIS (Página 104)
+        # =================================================================
+        print(f"--- [ETAPA 1] Buscando dados pessoais: {CPF_ALVO} ---")
+        driver.get("https://www26.senado.leg.br/senado/Ergon/Administracao/ERGadm00104.tp")
+        time.sleep(2)
         
-        # 1. ENCONTRAR O CAMPO CORRETO
-        # O problema 'not interactable' acontece porque existem VÁRIOS inputs 'searchbox' escondidos.
-        # Aqui pegamos todos e filtramos apenas o que está VISÍVEL.
         campo_busca = None
-        
-        # Procura todos os inputs com a classe 'searchbox'
         candidatos = driver.find_elements(By.CSS_SELECTOR, "input.searchbox")
-        
         for input_teste in candidatos:
             if input_teste.is_displayed() and input_teste.is_enabled():
                 campo_busca = input_teste
-                break # Achamos o visível, pode parar de procurar
-        
-        # Se não achou nenhum visível pela classe, tenta pegar o elemento ativo (plano B)
+                break 
         if campo_busca is None:
-            print("Aviso: Searchbox visível não encontrada. Tentando usar o elemento focado.")
             campo_busca = driver.switch_to.active_element
 
-        # 2. CLICAR E LIMPAR
         campo_busca.click()
-        time.sleep(0.5)
-        
-        # Tenta limpar com clear, se falhar (erro de estado), ignora e digita por cima
-        try:
-            campo_busca.clear()
-        except:
-            pass
+        try: campo_busca.clear()
+        except: pass
 
-        # 3. DIGITAR
-        print(f"Digitando CPF: {CPF_ALVO}")
         campo_busca.send_keys(CPF_ALVO)
-        
-        # 4. PAUSA OBRIGATÓRIA (Sua regra dos 5s)
-        print("Aguardando 5 segundos (Regra do sistema)...")
         time.sleep(5)
-        
-        print("Enviando ENTER...")
         campo_busca.send_keys(Keys.RETURN)
-        
-        print("Aguardando 4 segundos para dados aparecerem...")
-        time.sleep(4) 
+        time.sleep(3) 
 
-        # 5. RASPAGEM
-        dados = {}
-        
         def pegar_texto(id_elemento):
-            try:
-                return driver.find_element(By.ID, id_elemento).text
-            except:
-                return ""
+            try: return driver.find_element(By.ID, id_elemento).text
+            except: return ""
 
-        dados['nome_servidor'] = pegar_texto("txfNome")
-        dados['cpf'] = pegar_texto("txfCpf")
-        dados['matricula'] = pegar_texto("txfNumero")
+        dados_base['nome_servidor'] = pegar_texto("txfNome")
+        dados_base['cpf'] = pegar_texto("txfCpf")
+        dados_base['matricula'] = pegar_texto("txfNumero")
+        dados_base['data_nascimento'] = pegar_texto("txfDtnasc")
+        dados_base['nome_pai'] = pegar_texto("txfPai")
+        dados_base['nome_mae'] = pegar_texto("txfMae")
+        dados_base['pis'] = pegar_texto("txfPispasep")
+        dados_base['id'] = pegar_texto("txfNumrg")
+        dados_base['ssp'] = pegar_texto("txfOrgaorg")
+        dados_base['uf'] = pegar_texto("txfUfrg")
+
+        if not dados_base['nome_servidor']:
+            return []
+
+        # =================================================================
+        # ETAPA 2: VÍNCULOS (Página 156) - COM LÓGICA DE DATA FIM
+        # =================================================================
+        print(f"--- [ETAPA 2] Indo para página 156... ---")
+        url_pag2 = "https://www26.senado.leg.br/senado/Ergon/Administracao/ERGadm00156.tp"
+        driver.get(url_pag2)
+        time.sleep(3)
+
+        # 1. Digita para abrir a lista e contar
+        try:
+            campo_pag2 = driver.switch_to.active_element
+            driver.execute_script("arguments[0].value = '';", campo_pag2)
+            campo_pag2.send_keys(CPF_ALVO)
+            print("Digitado para contagem. Aguardando lista (3s)...")
+            time.sleep(3)
+        except:
+            return []
+
+        # 2. Conta quantos itens tem na lista
+        itens_lista = driver.find_elements(By.CLASS_NAME, "x-combo-list-item")
+        qtd_vinculos = len(itens_lista)
         
-        dados['data_nascimento'] = pegar_texto("txfDtnasc")
-        dados['nome_pai'] = pegar_texto("txfPai")
-        dados['nome_mae'] = pegar_texto("txfMae")
-        dados['pis'] = pegar_texto("txfPispasep")
-        dados['id'] = pegar_texto("txfNumrg")
-        dados['ssp'] = pegar_texto("txfOrgaorg")
-        dados['uf'] = pegar_texto("txfUfrg")
+        if qtd_vinculos == 0:
+            qtd_vinculos = 1 
 
-        if not dados['nome_servidor']:
-            print("Aviso: Nome não apareceu. A busca pode ter falhado.")
-            return None
+        print(f"--> Encontrados {qtd_vinculos} vínculo(s).")
 
-        return dados
+        # 3. LOOP
+        for i in range(qtd_vinculos):
+            print(f"> Processando Vínculo {i+1} de {qtd_vinculos}...")
+            
+            if i > 0:
+                driver.get(url_pag2)
+                time.sleep(2)
+            
+            try:
+                campo_pag2 = driver.switch_to.active_element
+                driver.execute_script("arguments[0].value = '';", campo_pag2)
+                time.sleep(0.5)
+                campo_pag2.send_keys(CPF_ALVO)
+                time.sleep(2) 
+            except: pass
+
+            if qtd_vinculos > 1 and i > 0:
+                print(f"Descendo {i} vezes na lista...")
+                for _ in range(i):
+                    campo_pag2.send_keys(Keys.ARROW_DOWN)
+                    time.sleep(0.3)
+            
+            campo_pag2.send_keys(Keys.RETURN)
+            time.sleep(4) 
+
+            # --- EXTRAÇÃO DESTE VÍNCULO ---
+            dados_atual = dados_base.copy()
+            
+            # 1. DATA DE ADMISSÃO (Continua buscando no texto do cabeçalho por enquanto, ou se tiver ID pode trocar)
+            try:
+                elemento = driver.find_element(By.XPATH, "//div[@name='linha' and contains(text(), 'Tipo de Vínculo')]")
+                texto = elemento.text
+                if "Exercício:" in texto:
+                    dados_atual['data_admissao'] = texto.split("Exercício:")[1].strip()[:10]
+                else:
+                    dados_atual['data_admissao'] = "-----"
+            except:
+                dados_atual['data_admissao'] = "-----"
+
+            # 2. LÓGICA NOVA: DATA DE DESLIGAMENTO (ATIVO)
+            # Procura pelo ID 'txfdtfim' que você encontrou
+            try:
+                elemento_fim = driver.find_element(By.ID, "txfdtfim")
+                data_desligamento = elemento_fim.text.strip()
+                
+                if data_desligamento:
+                    # Se tiver data, usa a data
+                    dados_atual['ativo'] = data_desligamento
+                else:
+                    # Se estiver vazio, coloca "ATIVA"
+                    dados_atual['ativo'] = "ATIVA"
+            except:
+                # Se der erro ou não achar o campo
+                dados_atual['ativo'] = "ATIVA"
+
+            dados_atual['portaria_nomeacao'] = "Informação não consta" 
+
+            lista_final_dados.append(dados_atual)
+
+        return lista_final_dados
 
     except Exception as e:
-        print(f"ERRO DE EXECUÇÃO: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+        print(f"ERRO: {e}")
+        return []

@@ -1,49 +1,84 @@
 from docxtpl import DocxTemplate
 from datetime import datetime
 import os
+import locale
+
+# Tenta configurar o sistema para Português (para o mês sair 'Janeiro' e não 'January')
+try: 
+    locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')
+except: 
+    pass
 
 def gerar_dtc(dados_recebidos):
-    # 1. Defina o nome da pasta onde quer salvar
     pasta_destino = "Documentos_Gerados"
+    modelo_docx = "modelo_dtc_template.docx"
 
-    print(f"Iniciando preenchimento para: {dados_recebidos.get('nome_servidor', 'Desconhecido')}")
+    # --- LÓGICA HÍBRIDA (Aceita Lista ou Dicionário) ---
+    if isinstance(dados_recebidos, list):
+        if not dados_recebidos:
+            print("❌ Lista vazia.")
+            return
+        # Se for lista, pega os dados pessoais do primeiro vínculo
+        dados_final = dados_recebidos[0].copy()
+        lista_para_tabela = dados_recebidos
+    else:
+        # Se for dicionário (legado), transforma em lista
+        dados_final = dados_recebidos.copy()
+        lista_para_tabela = [dados_recebidos]
 
-    # Verifica se o modelo existe
-    if not os.path.exists("modelo_dtc_template.docx"):
-        print("ERRO CRÍTICO: O arquivo 'modelo_dtc_template.docx' não foi encontrado!")
+    print(f"Iniciando doc para: {dados_final.get('nome_servidor')}")
+
+    # --- MONTA A LISTA PARA A TABELA DO WORD ---
+    tabela_word = []
+    for i, item in enumerate(lista_para_tabela):
+        linha = {
+            'seq': i + 1,
+            'data_admissao': item.get('data_admissao', '-----'),
+            # Aqui 'ativo' recebe a Data de Desligamento ou "ATIVA" vindo do extrator
+            'ativo': item.get('ativo', '-----'),
+            'portaria_nomeacao': item.get('portaria_nomeacao', '-----')
+        }
+        tabela_word.append(linha)
+    
+    # Adiciona a lista formatada ao contexto principal
+    dados_final['lista_tabela'] = tabela_word
+    
+    # --- DATAS ---
+    # 1. Data curta (ex: 29/01/2025)
+    dados_final['data_hoje'] = datetime.now().strftime("%d/%m/%Y")
+    
+    # 2. Data por extenso (ex: Brasília/DF, 29 de Janeiro de 2025.)
+    try:
+        hj = datetime.now()
+        meses = {
+            1:'Janeiro', 2:'Fevereiro', 3:'Março', 4:'Abril', 5:'Maio', 6:'Junho', 
+            7:'Julho', 8:'Agosto', 9:'Setembro', 10:'Outubro', 11:'Novembro', 12:'Dezembro'
+        }
+        dados_final['data_extenso'] = f"Brasília/DF, {hj.day} de {meses[hj.month]} de {hj.year}."
+    except: 
+        # Fallback simples caso dê erro no dicionário de meses
+        dados_final['data_extenso'] = datetime.now().strftime("Brasília/DF, %d de %B de %Y.")
+
+    # --- VERIFICAÇÕES E SALVAMENTO ---
+    if not os.path.exists(pasta_destino):
+        os.makedirs(pasta_destino)
+
+    if not os.path.exists(modelo_docx):
+        print(f"❌ MODELO NÃO ENCONTRADO: {modelo_docx}")
         return
 
     try:
-        # 2. Cria a pasta automaticamente se ela não existir
-        if not os.path.exists(pasta_destino):
-            os.makedirs(pasta_destino)
-            print(f"Pasta '{pasta_destino}' criada com sucesso.")
-
-        # Carregar o modelo
-        doc = DocxTemplate("modelo_dtc_template.docx")
-
-        # Adiciona a data de hoje
-        dados_recebidos['data_hoje'] = datetime.now().strftime("%d/%m/%Y")
-
-        # Renderizar o documento
-        doc.render(dados_recebidos)
-
-        # Definir nome do arquivo
-        nome_servidor = dados_recebidos.get('nome_servidor', 'Servidor')
-        matricula = dados_recebidos.get('matricula', '000000')
+        doc = DocxTemplate(modelo_docx)
+        doc.render(dados_final)
         
-        # Limpa caracteres estranhos do nome para não dar erro no Windows
-        nome_limpo = "".join([c for c in nome_servidor if c.isalnum() or c in (' ', '_')]).strip()
-        nome_arquivo = f"DTC_{nome_limpo}_{matricula}.docx"
-
-        # 3. O SEGREDO: Junta o nome da pasta com o nome do arquivo
-        # Isso gera algo como: "Documentos_Gerados\DTC_Fulano_12345.docx"
-        caminho_completo = os.path.join(pasta_destino, nome_arquivo)
-
-        # Salvar no caminho completo
-        doc.save(caminho_completo)
-
-        print(f"--> Documento SALVO na pasta '{pasta_destino}': {nome_arquivo}")
+        nome = dados_final.get('nome_servidor', 'Servidor')
+        mat = dados_final.get('matricula', '0000')
+        nome_limpo = "".join([c for c in nome if c.isalnum() or c in (' ', '_')]).strip()
+        
+        caminho = os.path.join(pasta_destino, f"DTC_Completa_{nome_limpo}_{mat}.docx")
+        
+        doc.save(caminho)
+        print(f"✅ Arquivo salvo: {caminho}")
         
     except Exception as e:
-        print(f"ERRO ao preencher/salvar o Word: {e}")
+        print(f"ERRO Word: {e}")
