@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import locale
 
-# Tenta configurar o sistema para Português (para o mês sair 'Janeiro' e não 'January')
+# Tenta configurar o sistema para Português
 try: 
     locale.setlocale(locale.LC_ALL, 'pt_BR.utf8')
 except: 
@@ -82,3 +82,44 @@ def gerar_dtc(dados_recebidos):
         
     except Exception as e:
         print(f"ERRO Word: {e}")
+
+# ==============================================================================
+# NOVA FUNÇÃO: DECLARAÇÃO FUNCIONAL
+# ==============================================================================
+def gerar_declaracao_funcional(dados_recebidos):
+    pasta_destino = "Documentos_Gerados"
+    modelo_docx = "modelo_declaracao_funcional.docx"
+
+    # Tratamento de lista (igual ao da DTC)
+    if isinstance(dados_recebidos, list):
+        if not dados_recebidos:
+            return
+        dados_base = dados_recebidos[0] # Pega os dados do primeiro vínculo
+    else:
+        dados_base = dados_recebidos
+
+    print(f"Gerando Declaração Funcional para: {dados_base.get('nome_servidor')}")
+
+    if not os.path.exists(pasta_destino):
+        os.makedirs(pasta_destino)
+
+    if not os.path.exists(modelo_docx):
+        print(f"❌ MODELO NOVO NÃO ENCONTRADO: {modelo_docx}")
+        return
+
+    try:
+        # Como as variáveis do seu arquivo novo ({{nome_servidor}}, {{cpf}}, etc)
+        # são iguais às do extrator, podemos passar 'dados_base' direto.
+        doc = DocxTemplate(modelo_docx)
+        doc.render(dados_base)
+        
+        nome = dados_base.get('nome_servidor', 'Servidor')
+        nome_limpo = "".join([c for c in nome if c.isalnum() or c in (' ', '_')]).strip()
+        
+        caminho = os.path.join(pasta_destino, f"Declaracao_Funcional_{nome_limpo}.docx")
+        
+        doc.save(caminho)
+        print(f"✅ Declaração Funcional salva: {caminho}")
+        
+    except Exception as e:
+        print(f"ERRO Word Funcional: {e}")

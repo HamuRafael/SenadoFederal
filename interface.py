@@ -5,9 +5,6 @@ import sys
 # ==============================================================================
 # CORREÇÃO PARA PYTHON 3.13 (FIX "BAD SCREEN DISTANCE")
 # ==============================================================================
-# O CustomTkinter ainda não foi atualizado oficialmente para o Python 3.13.
-# Este bloco de código intercepta a criação dos widgets e força o tamanho
-# a ser um número inteiro, evitando o erro 'bad screen distance "0.0"'.
 from customtkinter.windows.widgets.core_rendering import CTkCanvas
 
 _original_init = CTkCanvas.__init__
@@ -24,8 +21,8 @@ CTkCanvas.__init__ = _fixed_init
 
 # Importa o extrator
 from extrator_ergon import realizar_login_automatico, buscar_dados_servidor
-# Importa o gerador de DTC (agora com a lógica unificada)
-from preencher import gerar_dtc
+# Importa AS DUAS funções agora
+from preencher import gerar_dtc, gerar_declaracao_funcional
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -41,7 +38,7 @@ class PrintRedirector:
             self.text_widget.see("end")
             self.text_widget.configure(state="disabled")
         except:
-            pass # Evita erro se a janela fechar no meio do print
+            pass 
 
     def flush(self):
         pass
@@ -54,7 +51,6 @@ class App(ctk.CTk):
         self.geometry("700x600")
         self.resizable(False, False)
         
-        # Variável para saber qual documento estamos gerando
         self.modo_atual = "" 
 
         # --- CABEÇALHO ---
@@ -62,7 +58,7 @@ class App(ctk.CTk):
         self.label_titulo.pack(pady=20)
 
         # ===================================================
-        # FRAME 1: LOGIN (Visível no início)
+        # FRAME 1: LOGIN
         # ===================================================
         self.frame_login = ctk.CTkFrame(self)
         self.frame_login.pack(pady=20)
@@ -77,10 +73,9 @@ class App(ctk.CTk):
         self.btn_entrar.pack(pady=20)
 
         # ===================================================
-        # FRAME 2: MENU DE ESCOLHA (Invisível no início)
+        # FRAME 2: MENU DE ESCOLHA
         # ===================================================
         self.frame_menu = ctk.CTkFrame(self, fg_color="transparent") 
-        # Não damos pack() aqui ainda
 
         # Botão 1: DTC
         self.btn_opcao_dtc = ctk.CTkButton(self.frame_menu, text="Gerar DTC", 
@@ -89,8 +84,8 @@ class App(ctk.CTk):
                                            font=("Arial", 16, "bold"))
         self.btn_opcao_dtc.pack(pady=15)
 
-        # Botão 2: Nova Declaração (Exemplo)
-        self.btn_opcao_nova = ctk.CTkButton(self.frame_menu, text="Gerar Declaração X (Novo)", 
+        # Botão 2: Nova Declaração (Texto atualizado)
+        self.btn_opcao_nova = ctk.CTkButton(self.frame_menu, text="Gerar Declaração Funcional", 
                                             command=self.selecionar_nova, 
                                             width=300, height=60, 
                                             font=("Arial", 16, "bold"),
@@ -98,7 +93,7 @@ class App(ctk.CTk):
         self.btn_opcao_nova.pack(pady=15)
 
         # ===================================================
-        # FRAME 3: BUSCA E GERAÇÃO (Invisível no início)
+        # FRAME 3: BUSCA E GERAÇÃO
         # ===================================================
         self.frame_input = ctk.CTkFrame(self)
         
@@ -112,7 +107,6 @@ class App(ctk.CTk):
                                        fg_color="green", height=40, font=("Arial", 14, "bold"))
         self.btn_gerar.pack(pady=20, fill="x", padx=30)
 
-        # Botão de Voltar para o Menu
         self.btn_voltar = ctk.CTkButton(self.frame_input, text="Voltar ao Menu", command=self.voltar_menu, 
                                         fg_color="gray", width=100)
         self.btn_voltar.pack(pady=5)
@@ -139,8 +133,6 @@ class App(ctk.CTk):
 
         self.btn_entrar.configure(state="disabled", text="Conectando...")
         self.log_msg(">> Iniciando login...")
-        
-        # Roda em thread para não travar a tela
         threading.Thread(target=self.thread_login, args=(user, senha)).start()
 
     def thread_login(self, user, senha):
@@ -150,7 +142,6 @@ class App(ctk.CTk):
     def pos_login(self, sucesso):
         if sucesso:
             self.log_msg(">> ✅ Login realizado com sucesso!")
-            # Esconde Login, Mostra Menu
             self.frame_login.pack_forget()
             self.label_titulo.configure(text="Selecione o Serviço")
             self.frame_menu.pack(pady=20)
@@ -167,7 +158,7 @@ class App(ctk.CTk):
 
     def selecionar_nova(self):
         self.modo_atual = "NOVA"
-        self.mostrar_tela_input("Gerar Nova Declaração")
+        self.mostrar_tela_input("Gerar Declaração Funcional")
 
     def mostrar_tela_input(self, titulo_janela):
         self.frame_menu.pack_forget()
@@ -193,7 +184,6 @@ class App(ctk.CTk):
         threading.Thread(target=self.thread_gerar, args=(cpf,)).start()
 
     def thread_gerar(self, cpf):
-        # Redireciona prints para o log da tela
         old_stdout = sys.stdout
         sys.stdout = PrintRedirector(self.textbox_log)
         
@@ -208,14 +198,15 @@ class App(ctk.CTk):
                 # 2. Decide qual documento gerar
                 if self.modo_atual == "DTC":
                     print("Gerando arquivo DTC...")
-                    # A função gerar_dtc agora já lida com listas ou dicionários
                     gerar_dtc(dados)
                     print("✅ DTC Finalizado com sucesso.")
                     sucesso = True
                 
+                # --- AQUI ESTÁ A CHAMADA DA NOVA FUNÇÃO ---
                 elif self.modo_atual == "NOVA":
-                    print("⚠️ A função da Nova Declaração ainda será criada!")
-                    # AQUI VAMOS COLOCAR A FUNÇÃO NOVA DEPOIS
+                    print("Gerando Declaração Funcional...")
+                    gerar_declaracao_funcional(dados)
+                    print("✅ Declaração Funcional finalizada.")
                     sucesso = True
             else:
                 print("❌ Dados não encontrados.")
@@ -238,8 +229,6 @@ class App(ctk.CTk):
     def log_msg(self, texto):
         self.textbox_log.configure(state="normal")
         self.textbox_log.insert("end", texto + "\n")
-
-
         self.textbox_log.see("end")
         self.textbox_log.configure(state="disabled")
 

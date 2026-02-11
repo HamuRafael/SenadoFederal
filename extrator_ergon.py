@@ -26,7 +26,7 @@ def realizar_login_automatico(usuario, senha):
             
         url_alvo = "https://www26.senado.leg.br/senado/Ergon/Administracao/ERGadm00104.tp"
         driver.get(url_alvo)
-        time.sleep(3) 
+        time.sleep(2) 
         
         try: driver.find_element(By.ID, "username").clear()
         except: pass
@@ -37,7 +37,7 @@ def realizar_login_automatico(usuario, senha):
         driver.find_element(By.ID, "password").send_keys(senha)
         driver.find_element(By.ID, "password").send_keys(Keys.RETURN)
         
-        time.sleep(5)
+        time.sleep(4)
         return True
     except Exception as e:
         print(f"Erro no login: {e}")
@@ -75,7 +75,7 @@ def buscar_dados_servidor(CPF_ALVO):
         except: pass
 
         campo_busca.send_keys(CPF_ALVO)
-        time.sleep(5)
+        time.sleep(3)
         campo_busca.send_keys(Keys.RETURN)
         time.sleep(3) 
 
@@ -111,7 +111,7 @@ def buscar_dados_servidor(CPF_ALVO):
             driver.execute_script("arguments[0].value = '';", campo_pag2)
             campo_pag2.send_keys(CPF_ALVO)
             print("Digitado para contagem. Aguardando lista (3s)...")
-            time.sleep(3)
+            time.sleep(2)
         except:
             return []
 
