@@ -1,0 +1,4 @@
+selenium
+docxtpl
+customtkinter
+webdriver-manager
