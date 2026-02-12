@@ -1,4 +1,4 @@
-# Ignorar ambiente virtual (muito pesado)
+# Ignorar ambiente virtual
 venv/
 .env
 
@@ -9,9 +9,10 @@ __pycache__/
 # Ignorar arquivos gerados pelo robô (para não vazar dados reais)
 Documentos_Gerados/
 *.docx
+!modelo_dtc_template.docx
 *.pdf
 
-# Ignorar arquivos de build do PyInstaller (se você criar o .exe)
+# Ignorar arquivos de build do PyInstaller
 build/
 dist/
 *.spec
