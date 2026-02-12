@@ -1,6 +1,9 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+# --- NOVAS IMPORTAÇÕES (Para corrigir o erro do driver) ---
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 # Variável GLOBAL para segurar o navegador
@@ -15,7 +18,15 @@ def iniciar_driver_debug():
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--ignore-certificate-errors')
     
-    driver = webdriver.Chrome(options=options)
+    # --- MUDANÇA AQUI: Usa o gerenciador para baixar/achar o driver ---
+    try:
+        servico = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=servico, options=options)
+    except Exception as e:
+        print(f"Erro no gerenciador: {e}")
+        # Tenta o método antigo se o gerenciador falhar
+        driver = webdriver.Chrome(options=options)
+
     return driver
 
 def realizar_login_automatico(usuario, senha):
